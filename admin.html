@@ -1,91 +1,38 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex">
-<title>Admin</title>
-<script src="config.js"></script>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#111"><title>Store Admin</title>
 <style>
-body{font-family:system-ui;margin:0;background:#f4f4f4;color:#111}
-header{background:#111;color:#fff;padding:14px 20px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
-header a{color:#ccc;text-decoration:none;cursor:pointer}header a.on{color:#fff;font-weight:600}header .sp{flex:1}
-main{padding:20px;overflow-x:auto}
-table{border-collapse:collapse;width:100%;background:#fff;border-radius:10px;overflow:hidden;font-size:14px}
-th,td{padding:10px 12px;border-bottom:1px solid #eee;text-align:left;vertical-align:top}th{background:#fafafa}
-.b{padding:2px 8px;border-radius:99px;background:#eee;font-size:12px}
-#login{display:grid;place-items:center;height:100vh}
-#login form{background:#fff;padding:24px;border-radius:12px;display:flex;flex-direction:column;gap:12px;width:min(320px,90%)}
-input,button{padding:10px;font:inherit;border-radius:8px;border:1px solid #ccc}
-button{background:#111;color:#fff;border:0;cursor:pointer}
-</style>
-</head>
+*{box-sizing:border-box}body{margin:0;background:#f5f5f3;color:#171717;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}.top{background:#171717;color:#fff;padding:22px max(20px,calc((100% - 1120px)/2));display:flex;align-items:center;justify-content:space-between;gap:20px}.top strong{font-size:20px;letter-spacing:-.04em}.top span{font-size:12px;color:#bbb}.wrap{max-width:1120px;margin:28px auto;padding:0 18px}.panel{background:#fff;border:1px solid #e7e6e1;border-radius:16px;padding:22px;margin-bottom:18px}.panel h2{margin:0 0 15px;font-size:20px}.formrow{display:flex;gap:10px;flex-wrap:wrap}.field{padding:12px 14px;border:1px solid #ddd;border-radius:10px;min-width:220px;flex:1}.btn{border:0;border-radius:10px;background:#171717;color:#fff;padding:12px 17px;font-weight:650;cursor:pointer}.btn.secondary{background:#eee;color:#171717}.msg{font-size:13px;color:#666;margin-top:12px;overflow-wrap:anywhere}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.stat{background:#f7f7f5;border-radius:12px;padding:16px}.stat small{display:block;color:#777}.stat strong{font-size:24px}.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px;min-width:650px}th,td{text-align:left;padding:13px 10px;border-bottom:1px solid #eee;vertical-align:top}th{color:#777;font-weight:600}.empty{padding:24px;text-align:center;color:#777;background:#fafaf8;border-radius:12px}.warning{font-size:12px;line-height:1.6;color:#777;margin-top:12px}@media(max-width:600px){.stats{grid-template-columns:1fr}.top{align-items:flex-start;flex-direction:column}.panel{padding:16px}}
+</style></head>
 <body>
-<div id="login">
-  <form id="lf"><b>Admin login</b>
-    <input type="password" id="pw" placeholder="Password" autofocus>
-    <small id="err" style="color:#c00"></small>
-    <button>Login</button>
-  </form>
-</div>
-
-<div id="app" style="display:none">
-  <header><b>Admin</b>
-    <a id="t-orders" class="on">Orders</a><a id="t-products">Products</a>
-    <span class="sp"></span><a id="logout">Logout</a>
-  </header>
-  <main id="out">Loading…</main>
-</div>
-
-<script>
-const $ = id => document.getElementById(id);
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let pw = sessionStorage.getItem('pw') || '', tab = 'orders';
-
-async function api(path){
-  const r = await fetch(window.CONFIG.API_URL + path, {headers: {Authorization: 'Bearer ' + pw}});
-  if (r.status === 401) throw new Error('auth');
-  if (!r.ok) throw new Error('fail');
-  return r.json();
+<header class="top"><strong>REALISTICMART. <span>/ Admin</span></strong><span>Private store dashboard</span></header>
+<main class="wrap">
+<section class="panel"><h2>Connect to store API</h2><div class="formrow"><input class="field" id="api" aria-label="Worker API URL" placeholder="https://your-worker.workers.dev"><input class="field" id="password" type="password" autocomplete="current-password" placeholder="Admin password"><button class="btn" id="connect">Connect</button></div><div id="connectMsg" class="msg">Enter the deployed Worker URL and the ADMIN_PASSWORD value configured in Cloudflare.</div><p class="warning">The password is kept only in this page's memory for this session. Do not place Shopify CLIENT_SECRET or ADMIN_PASSWORD in config.js or any public website file.</p></section>
+<section class="panel"><h2>Overview</h2><div class="stats"><div class="stat"><small>Recent orders loaded</small><strong id="orderCount">—</strong></div><div class="stat"><small>Products loaded</small><strong id="productCount">—</strong></div><div class="stat"><small>API status</small><strong id="apiStatus" style="font-size:16px">Not connected</strong></div></div></section>
+<section class="panel"><h2>Recent orders</h2><div id="orders" class="empty">Connect to load orders.</div></section>
+<section class="panel"><h2>Products</h2><div id="products" class="empty">Connect to load products.</div></section>
+</main>
+<script src="config.js"></script><script>
+(()=>{
+const apiInput=document.getElementById("api"),passInput=document.getElementById("password");
+apiInput.value=window.APP_CONFIG?.API_BASE_URL||"";
+let password="";
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const money=(v,c="INR")=>{try{return new Intl.NumberFormat(undefined,{style:"currency",currency:c}).format(Number(v)||0)}catch{return `${c} ${v}`}};
+async function get(path,auth=false){const base=apiInput.value.trim().replace(/\/+$/,"");if(!base)throw Error("Enter the Worker API URL.");const r=await fetch(base+path,{headers:{"Accept":"application/json",...(auth?{"Authorization":"Bearer "+password}:{})}});const d=await r.json();if(!r.ok)throw Error(d.error||d.message||`Request failed (${r.status})`);return d}
+function table(headers,rows){if(!rows.length)return '<div class="empty">No records returned.</div>';return `<div class="tablewrap"><table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table></div>`}
+async function connect(){
+ password=passInput.value;const msg=document.getElementById("connectMsg"), status=document.getElementById("apiStatus");
+ msg.textContent="Connecting…";status.textContent="Checking";
+ try{
+  const health=await get("/",false);if(!health.ok)throw Error("Worker health check failed.");
+  const [orders,products]=await Promise.all([get("/admin/orders",true),get("/admin/products",true)]);
+  status.textContent="Connected";document.getElementById("orderCount").textContent=orders.length;document.getElementById("productCount").textContent=products.length;
+  document.getElementById("orders").innerHTML=table(["Order","Created","Customer","Total","Payment","Fulfillment","Items"],orders.map(o=>`<tr><td><strong>${esc(o.name)}</strong></td><td>${esc(o.createdAt?new Date(o.createdAt).toLocaleString():"—")}</td><td>${esc(o.email||o.shippingAddress?.name||"—")}<br>${esc(o.shippingAddress?.phone||"")}</td><td>${money(o.totalPriceSet?.shopMoney?.amount,o.totalPriceSet?.shopMoney?.currencyCode||"INR")}</td><td>${esc(o.displayFinancialStatus||"—")}</td><td>${esc(o.displayFulfillmentStatus||"—")}</td><td>${(o.lineItems?.nodes||[]).map(i=>`${esc(i.title)} × ${esc(i.quantity)}`).join("<br>")}</td></tr>`)));
+  document.getElementById("products").innerHTML=table(["Product","Status","Inventory","Starting price"],products.map(p=>`<tr><td>${esc(p.title)}</td><td>${esc(p.status||"—")}</td><td>${esc(p.totalInventory??"—")}</td><td>${money(p.priceRangeV2?.minVariantPrice?.amount,p.priceRangeV2?.minVariantPrice?.currencyCode||"INR")}</td></tr>`));
+  msg.textContent="Connected successfully. Data below was returned by the Worker API.";
+ }catch(e){status.textContent="Error";msg.textContent="Could not connect: "+e.message;document.getElementById("orders").textContent="Orders unavailable.";document.getElementById("products").textContent="Products unavailable."}
 }
-
-async function show(t){
-  tab = t;
-  $('t-orders').className = t === 'orders' ? 'on' : '';
-  $('t-products').className = t === 'products' ? 'on' : '';
-  $('out').textContent = 'Loading…';
-  try {
-    const rows = await api('/admin/' + t);
-    if (t === 'orders') {
-      $('out').innerHTML = `<table><tr><th>Order</th><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Payment</th><th>Delivery</th></tr>` +
-        rows.map(o => { const a = o.shippingAddress || {}, m = o.totalPriceSet.shopMoney; return `<tr>
-          <td>${esc(o.name)}</td><td>${esc(new Date(o.createdAt).toLocaleString())}</td>
-          <td>${esc(a.name)}<br><small>${esc(o.email)}<br>${esc(a.phone)}<br>${esc((a.address1 || '') + ', ' + (a.city || '') + ' ' + (a.zip || ''))}</small></td>
-          <td>${o.lineItems.nodes.map(l => esc(l.quantity + ' × ' + l.title)).join('<br>')}</td>
-          <td>${esc(m.amount + ' ' + m.currencyCode)}</td>
-          <td><span class="b">${esc(o.displayFinancialStatus)}</span></td>
-          <td><span class="b">${esc(o.displayFulfillmentStatus)}</span></td></tr>`; }).join('') + '</table>';
-    } else {
-      $('out').innerHTML = `<table><tr><th>Product</th><th>Status</th><th>Price from</th><th>Stock</th></tr>` +
-        rows.map(p => { const m = p.priceRangeV2.minVariantPrice; return `<tr><td>${esc(p.title)}</td>
-          <td><span class="b">${esc(p.status)}</span></td><td>${esc(m.amount + ' ' + m.currencyCode)}</td><td>${esc(p.totalInventory)}</td></tr>`; }).join('') + '</table>';
-    }
-  } catch(e) {
-    if (e.message === 'auth') return logout();
-    $('out').textContent = 'Could not load data. Check your Worker settings.';
-  }
-}
-function logout(){ sessionStorage.removeItem('pw'); pw = ''; $('app').style.display = 'none'; $('login').style.display = 'grid'; }
-async function enter(){
-  try { await api('/admin/products'); } catch(e) { $('err').textContent = 'Wrong password'; return logout(); }
-  sessionStorage.setItem('pw', pw);
-  $('login').style.display = 'none'; $('app').style.display = 'block'; show(tab);
-}
-$('lf').onsubmit = e => { e.preventDefault(); pw = $('pw').value; $('err').textContent = ''; enter(); };
-$('t-orders').onclick = () => show('orders');
-$('t-products').onclick = () => show('products');
-$('logout').onclick = logout;
-if (pw) enter();
-</script>
-</body>
-</html>
+document.getElementById("connect").addEventListener("click",connect);
+})();
+</script></body></html>

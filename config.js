@@ -1,7 +1,5 @@
-// Public settings only. NEVER put your Client Secret here.
-window.CONFIG = {
-  SITE_NAME: "My Store",
-  API_URL: "mute-morning-6227.kajgarvarad.workers.dev", // from Cloudflare after deploying worker.js
-  DEFAULT_COUNTRY: "IN"
+// Public frontend configuration ONLY.
+// Never put CLIENT_SECRET, Shopify Admin API token, or ADMIN_PASSWORD in this file.
+window.APP_CONFIG = {
+  API_BASE_URL: "https://worker.kajgarvarad.workers.dev"
 };
-
