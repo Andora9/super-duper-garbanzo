@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Admin</title>
+<script src="config.js"></script>
+<style>
+body{font-family:system-ui;margin:0;background:#f4f4f4;color:#111}
+header{background:#111;color:#fff;padding:14px 20px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+header a{color:#ccc;text-decoration:none;cursor:pointer}header a.on{color:#fff;font-weight:600}header .sp{flex:1}
+main{padding:20px;overflow-x:auto}
+table{border-collapse:collapse;width:100%;background:#fff;border-radius:10px;overflow:hidden;font-size:14px}
+th,td{padding:10px 12px;border-bottom:1px solid #eee;text-align:left;vertical-align:top}th{background:#fafafa}
+.b{padding:2px 8px;border-radius:99px;background:#eee;font-size:12px}
+#login{display:grid;place-items:center;height:100vh}
+#login form{background:#fff;padding:24px;border-radius:12px;display:flex;flex-direction:column;gap:12px;width:min(320px,90%)}
+input,button{padding:10px;font:inherit;border-radius:8px;border:1px solid #ccc}
+button{background:#111;color:#fff;border:0;cursor:pointer}
+</style>
+</head>
+<body>
+<div id="login">
+  <form id="lf"><b>Admin login</b>
+    <input type="password" id="pw" placeholder="Password" autofocus>
+    <small id="err" style="color:#c00"></small>
+    <button>Login</button>
+  </form>
+</div>
+
+<div id="app" style="display:none">
+  <header><b>Admin</b>
+    <a id="t-orders" class="on">Orders</a><a id="t-products">Products</a>
+    <span class="sp"></span><a id="logout">Logout</a>
+  </header>
+  <main id="out">Loading…</main>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let pw = sessionStorage.getItem('pw') || '', tab = 'orders';
+
+async function api(path){
+  const r = await fetch(window.CONFIG.API_URL + path, {headers: {Authorization: 'Bearer ' + pw}});
+  if (r.status === 401) throw new Error('auth');
+  if (!r.ok) throw new Error('fail');
+  return r.json();
+}
+
+async function show(t){
+  tab = t;
+  $('t-orders').className = t === 'orders' ? 'on' : '';
+  $('t-products').className = t === 'products' ? 'on' : '';
+  $('out').textContent = 'Loading…';
+  try {
+    const rows = await api('/admin/' + t);
+    if (t === 'orders') {
+      $('out').innerHTML = `<table><tr><th>Order</th><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Payment</th><th>Delivery</th></tr>` +
+        rows.map(o => { const a = o.shippingAddress || {}, m = o.totalPriceSet.shopMoney; return `<tr>
+          <td>${esc(o.name)}</td><td>${esc(new Date(o.createdAt).toLocaleString())}</td>
+          <td>${esc(a.name)}<br><small>${esc(o.email)}<br>${esc(a.phone)}<br>${esc((a.address1 || '') + ', ' + (a.city || '') + ' ' + (a.zip || ''))}</small></td>
+          <td>${o.lineItems.nodes.map(l => esc(l.quantity + ' × ' + l.title)).join('<br>')}</td>
+          <td>${esc(m.amount + ' ' + m.currencyCode)}</td>
+          <td><span class="b">${esc(o.displayFinancialStatus)}</span></td>
+          <td><span class="b">${esc(o.displayFulfillmentStatus)}</span></td></tr>`; }).join('') + '</table>';
+    } else {
+      $('out').innerHTML = `<table><tr><th>Product</th><th>Status</th><th>Price from</th><th>Stock</th></tr>` +
+        rows.map(p => { const m = p.priceRangeV2.minVariantPrice; return `<tr><td>${esc(p.title)}</td>
+          <td><span class="b">${esc(p.status)}</span></td><td>${esc(m.amount + ' ' + m.currencyCode)}</td><td>${esc(p.totalInventory)}</td></tr>`; }).join('') + '</table>';
+    }
+  } catch(e) {
+    if (e.message === 'auth') return logout();
+    $('out').textContent = 'Could not load data. Check your Worker settings.';
+  }
+}
+function logout(){ sessionStorage.removeItem('pw'); pw = ''; $('app').style.display = 'none'; $('login').style.display = 'grid'; }
+async function enter(){
+  try { await api('/admin/products'); } catch(e) { $('err').textContent = 'Wrong password'; return logout(); }
+  sessionStorage.setItem('pw', pw);
+  $('login').style.display = 'none'; $('app').style.display = 'block'; show(tab);
+}
+$('lf').onsubmit = e => { e.preventDefault(); pw = $('pw').value; $('err').textContent = ''; enter(); };
+$('t-orders').onclick = () => show('orders');
+$('t-products').onclick = () => show('products');
+$('logout').onclick = logout;
+if (pw) enter();
+</script>
+</body>
+</html>

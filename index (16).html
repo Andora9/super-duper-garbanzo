@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Store</title>
+<script src="config.js"></script>
+<style>
+:root{--bg:#fff;--fg:#111;--mut:#666;--line:#e5e5e5;--card:#fafafa;--acc:#111;--accfg:#fff}
+@media(prefers-color-scheme:dark){:root{--bg:#111;--fg:#f2f2f2;--mut:#999;--line:#2a2a2a;--card:#1a1a1a;--acc:#f2f2f2;--accfg:#111}}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--fg)}
+header{display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:5}
+h1{font-size:20px;margin:0}
+button{cursor:pointer;font:inherit;border:0;border-radius:8px;padding:10px 14px;background:var(--acc);color:var(--accfg)}
+button:disabled{opacity:.6}button.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:16px;padding:20px;max-width:1200px;margin:auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+.card img{width:100%;aspect-ratio:1;object-fit:cover;background:var(--line)}
+.card .in{padding:12px;display:flex;flex-direction:column;gap:8px;flex:1}
+.card h3{margin:0;font-size:15px}.price{color:var(--mut)}
+select,input{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);font:inherit}
+#panel{position:fixed;inset:0 0 0 auto;width:min(420px,100%);background:var(--bg);border-left:1px solid var(--line);transform:translateX(100%);transition:.25s;z-index:10;display:flex;flex-direction:column}
+#panel.open{transform:none}
+#panel .body{padding:16px;overflow:auto;flex:1;display:flex;flex-direction:column;gap:10px}
+.row{display:flex;justify-content:space-between;gap:8px;align-items:center;border-bottom:1px solid var(--line);padding-bottom:8px}
+.qty button{padding:4px 10px}
+#msg{padding:10px;border-radius:8px;display:none;color:#111}
+.hp{position:absolute;left:-9999px}
+</style>
+</head>
+<body>
+<header><h1 id="title"></h1><button id="cartBtn" class="ghost">Cart (<span id="cnt">0</span>)</button></header>
+<div class="grid" id="grid"><p>Loading…</p></div>
+
+<aside id="panel">
+  <header><b>Your cart</b><button class="ghost" id="close">Close</button></header>
+  <div class="body">
+    <div id="items"></div>
+    <div class="row"><b>Total</b><b id="total"></b></div>
+    <input id="name" placeholder="Full name"><input id="email" type="email" placeholder="Email">
+    <input id="phone" placeholder="Phone"><input id="address" placeholder="Address">
+    <input id="city" placeholder="City"><input id="zip" placeholder="PIN / ZIP code">
+    <input id="country" placeholder="Country code (e.g. IN)" maxlength="2">
+    <input class="hp" id="website" tabindex="-1" autocomplete="off">
+    <div id="msg"></div>
+    <button id="order">Place order</button>
+  </div>
+</aside>
+
+<script>
+const C = window.CONFIG;
+const $ = id => document.getElementById(id);
+document.title = C.SITE_NAME;
+$('title').textContent = C.SITE_NAME; $('country').value = C.DEFAULT_COUNTRY || '';
+let DATA = {currency: 'USD', products: []};
+const fmt = n => new Intl.NumberFormat(undefined, {style:'currency', currency: DATA.currency}).format(n);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let cart = [];
+try { cart = JSON.parse(localStorage.getItem('cart') || '[]'); } catch(e) {}
+const save = () => { try { localStorage.setItem('cart', JSON.stringify(cart)); } catch(e) {} };
+const findVariant = id => { for (const p of DATA.products) for (const v of p.variants) if (v.id === id) return {p, v}; };
+
+async function load(){
+  try {
+    const r = await fetch(C.API_URL + '/products');
+    DATA = await r.json();
+    $('grid').innerHTML = DATA.products.map((p, i) => `
+      <div class="card">${p.image ? `<img src="${esc(p.image)}" alt="${esc(p.title)}" loading="lazy">` : '<img>'}
+        <div class="in"><h3>${esc(p.title)}</h3>
+        <select id="v${i}" onchange="document.getElementById('pr${i}').textContent=fmt(this.selectedOptions[0].dataset.price)">
+          ${p.variants.map(v => `<option value="${esc(v.id)}" data-price="${esc(v.price)}" ${v.ok ? '' : 'disabled'}>${esc(v.title)}${v.ok ? '' : ' (sold out)'}</option>`).join('')}
+        </select>
+        <span class="price" id="pr${i}">${fmt(p.variants[0].price)}</span>
+        <button onclick="add(${i})">Add to cart</button></div></div>`).join('') || '<p>No products available.</p>';
+  } catch(e) { $('grid').innerHTML = '<p>Could not load products.</p>'; }
+  render();
+}
+function add(i){
+  const id = $('v'+i).value, x = cart.find(c => c.variantId === id);
+  x ? x.qty++ : cart.push({variantId: id, qty: 1});
+  save(); render(); $('panel').classList.add('open');
+}
+function chg(id, d){
+  const x = cart.find(c => c.variantId === id); x.qty += d;
+  if (x.qty < 1) cart = cart.filter(c => c !== x);
+  save(); render();
+}
+function render(){
+  let total = 0, n = 0;
+  if (DATA.products.length) cart = cart.filter(c => findVariant(c.variantId));
+  $('items').innerHTML = cart.map(c => {
+    const f = findVariant(c.variantId); if (!f) return '';
+    total += f.v.price * c.qty; n += c.qty;
+    return `<div class="row"><span>${esc(f.p.title)}${f.v.title !== 'Default Title' ? ' – ' + esc(f.v.title) : ''}<br><small>${fmt(f.v.price)}</small></span>
+      <span class="qty"><button class="ghost" onclick="chg('${esc(c.variantId)}',-1)">−</button> ${c.qty} <button class="ghost" onclick="chg('${esc(c.variantId)}',1)">+</button></span></div>`;
+  }).join('') || '<p>Your cart is empty.</p>';
+  $('total').textContent = fmt(total); $('cnt').textContent = n;
+}
+function show(t, ok){ const m = $('msg'); m.style.display = 'block'; m.textContent = t; m.style.background = ok ? '#d8f5d8' : '#fbd9d9'; }
+
+$('cartBtn').onclick = () => $('panel').classList.add('open');
+$('close').onclick = () => $('panel').classList.remove('open');
+$('order').onclick = async () => {
+  const btn = $('order'); btn.disabled = true; btn.textContent = 'Placing…';
+  try {
+    const customer = {};
+    ['name','email','phone','address','city','zip','country'].forEach(k => customer[k] = $(k).value);
+    const r = await fetch(C.API_URL + '/order', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({cart, customer, website: $('website').value})});
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error);
+    cart = []; save(); render(); show('Order placed! Your order number is ' + j.order, true);
+  } catch(e) { show(e.message || 'Something went wrong', false); }
+  btn.disabled = false; btn.textContent = 'Place order';
+};
+load();
+</script>
+</body>
+</html>
